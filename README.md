@@ -13,13 +13,17 @@ AI coding agents are powerful but unpredictable. A single hallucination or misun
 
 Leash acts as a security layer between the AI agent and your system, ensuring all file operations stay within your project boundaries.
 
-## Quick Start
+![Claude Code](assets/claude-code.png)
 
-### Pi Coding Agent - [more info](https://shittycodingagent.ai)
+## Quick Start
 
 ```bash
 git clone https://github.com/melihmucuk/leash.git ~/leash
 ```
+
+Then configure your agent:
+
+### Pi Coding Agent — [docs](https://shittycodingagent.ai)
 
 Add to `~/.pi/agent/settings.json`:
 
@@ -29,24 +33,13 @@ Add to `~/.pi/agent/settings.json`:
 }
 ```
 
-Restart Pi — done!
-
-### OpenCode - [more info](https://opencode.ai)
+### OpenCode — [docs](https://opencode.ai)
 
 ```bash
-git clone https://github.com/melihmucuk/leash.git ~/leash
 ln -s ~/leash/dist/opencode/leash.js ~/.config/opencode/plugin/leash.js
 ```
 
-Restart OpenCode — done!
-
-**Uninstall:** `rm ~/.config/opencode/plugin/leash.js`
-
-### Claude Code - [more info](https://claude.com/product/claude-code)
-
-```bash
-git clone https://github.com/melihmucuk/leash.git ~/leash
-```
+### Claude Code — [docs](https://claude.ai/code)
 
 Add to `~/.claude/settings.json`:
 
@@ -68,13 +61,7 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Restart Claude Code — done!
-
-### Factory Droid - [more info](https://factory.ai/product/cli)
-
-```bash
-git clone https://github.com/melihmucuk/leash.git ~/leash
-```
+### Factory Droid — [docs](https://factory.ai)
 
 Add to `~/.factory/settings.json`:
 
@@ -96,11 +83,13 @@ Add to `~/.factory/settings.json`:
 }
 ```
 
-Restart Factory Droid — done!
+Restart your agent — done!
 
----
+## Update
 
-**Update:** `cd ~/leash && git pull`
+```bash
+cd ~/leash && git pull
+```
 
 ## Supported Platforms
 
@@ -199,8 +188,8 @@ npm run build
 
 Contributions are welcome! Areas where help is needed:
 
-- [x] Plugin for Claude Code
-- [x] Plugin for Factory Droid
+- [ ] Plugin for AMP Code
+- [ ] Protect sensitive files in project directory (`.env`, `.git/config`, keys)
 - [ ] Additional dangerous command patterns
 - [ ] Bypass testing and security audits
 
