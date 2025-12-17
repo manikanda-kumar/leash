@@ -23,7 +23,7 @@ git clone https://github.com/melihmucuk/leash.git ~/leash
 
 Then configure your agent:
 
-### Pi Coding Agent — [docs](https://shittycodingagent.ai)
+### Pi Coding Agent — [docs](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/hooks.md)
 
 Add to `~/.pi/agent/settings.json`:
 
@@ -33,13 +33,13 @@ Add to `~/.pi/agent/settings.json`:
 }
 ```
 
-### OpenCode — [docs](https://opencode.ai)
+### OpenCode — [docs](https://opencode.ai/docs/plugins/)
 
 ```bash
 ln -s ~/leash/dist/opencode/leash.js ~/.config/opencode/plugin/leash.js
 ```
 
-### Claude Code — [docs](https://claude.ai/code)
+### Claude Code — [docs](https://code.claude.com/docs/en/hooks-guide)
 
 Add to `~/.claude/settings.json`:
 
@@ -61,7 +61,7 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-### Factory Droid — [docs](https://factory.ai)
+### Factory Droid — [docs](https://docs.factory.ai/cli/configuration/hooks-guide)
 
 Add to `~/.factory/settings.json`:
 
