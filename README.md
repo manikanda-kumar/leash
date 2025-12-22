@@ -169,6 +169,8 @@ echo ok && rm ~/file         # ❌ Dangerous command after &&
 false || rm -rf ~/           # ❌ Dangerous command after ||
 ls; rm ~/file                # ❌ Dangerous command after ;
 cat x | rm ~/file            # ❌ Dangerous command in pipe
+cd ~/Downloads && rm file    # ❌ cd outside + dangerous command
+cd .. && cd .. && rm target  # ❌ cd hops escaping working dir
 ```
 
 ### Wrapper Commands
