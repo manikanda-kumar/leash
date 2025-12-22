@@ -7,6 +7,7 @@
 AI agents can hallucinate dangerous commands. Leash sandboxes them:
 
 - Blocks `rm`, `mv`, `cp`, `chmod` outside working directory
+- Protects sensitive files (`.env`, `.git`) even inside project
 - Blocks `git reset --hard`, `push --force`, `clean -f`
 - Resolves symlinks to prevent directory escapes
 - Analyzes command chains (`&&`, `||`, `;`, `|`)
@@ -101,6 +102,11 @@ rm -rf ~/Documents                # ❌ Delete outside working dir
 mv ~/.bashrc /tmp/                # ❌ Move from outside
 echo "data" > ~/file.txt          # ❌ Redirect to home
 
+# Protected files (blocked even inside project)
+rm .env                           # ❌ Protected file
+echo "SECRET=x" > .env.local      # ❌ Protected file
+rm -rf .git                       # ❌ Protected directory
+
 # Dangerous git commands (blocked everywhere)
 git reset --hard                  # ❌ Destroys uncommitted changes
 git push --force                  # ❌ Destroys remote history
@@ -109,6 +115,7 @@ git clean -fd                     # ❌ Removes untracked files
 # File operations via Write/Edit tools
 ~/.bashrc                         # ❌ Home directory file
 ../../../etc/hosts                # ❌ Path traversal
+.env                              # ❌ Protected file
 ```
 
 ## What's Allowed
@@ -116,6 +123,7 @@ git clean -fd                     # ❌ Removes untracked files
 ```bash
 rm -rf ./node_modules             # ✅ Working directory
 rm -rf /tmp/build-cache           # ✅ Temp directory
+rm .env.example                   # ✅ Example files allowed
 git commit -m "message"           # ✅ Safe git commands
 git push origin main              # ✅ Normal push (no --force)
 ```
@@ -191,6 +199,20 @@ find ~ | xargs -I{} mv {} /tmp        # ❌ xargs mv outside
 rsync -av --delete ~/src/ ~/dst/      # ❌ rsync --delete outside
 ```
 
+### Protected Files (blocked even inside project)
+
+```bash
+rm .env                      # ❌ Environment file
+rm .env.local                # ❌ Environment file
+rm .env.production           # ❌ Environment file
+echo "x" > .env              # ❌ Write to env file
+rm -rf .git                  # ❌ Git directory
+echo "x" > .git/config       # ❌ Write to git directory
+find . -name ".env" -delete  # ❌ Delete protected via find
+```
+
+Note: `.env.example` is allowed (template files are safe).
+
 ### File Operations (Write/Edit tools)
 
 ```bash
@@ -198,6 +220,8 @@ rsync -av --delete ~/src/ ~/dst/      # ❌ rsync --delete outside
 ~/.bashrc                    # ❌ Home directory file
 /home/user/.ssh/id_rsa       # ❌ Absolute path outside
 ../../../etc/hosts           # ❌ Path traversal
+.env                         # ❌ Protected file
+.git/config                  # ❌ Protected directory
 ```
 
 ### What's Allowed (Full List)
@@ -275,9 +299,6 @@ npm run build
 Contributions are welcome! Areas where help is needed:
 
 - [ ] Plugin for AMP Code
-- [ ] Protect sensitive files in project directory (`.env`, `.git/config`, keys)
-- [ ] Additional dangerous command patterns
-- [ ] Bypass testing and security audits
 
 ---
 

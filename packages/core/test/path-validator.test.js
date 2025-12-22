@@ -73,6 +73,49 @@ test("/dev/null is not temp path", () => {
   assert.strictEqual(validator.isTempPath("/dev/null"), false);
 });
 
+// isProtectedPath
+test("protects .env", () => {
+  const result = validator.isProtectedPath(".env");
+  assert.strictEqual(result.protected, true);
+  assert.strictEqual(result.name, ".env files");
+});
+
+test("protects .env.local", () => {
+  const result = validator.isProtectedPath(".env.local");
+  assert.strictEqual(result.protected, true);
+});
+
+test("protects .env.production", () => {
+  const result = validator.isProtectedPath(".env.production");
+  assert.strictEqual(result.protected, true);
+});
+
+test("allows .env.example", () => {
+  const result = validator.isProtectedPath(".env.example");
+  assert.strictEqual(result.protected, false);
+});
+
+test("protects .git", () => {
+  const result = validator.isProtectedPath(".git");
+  assert.strictEqual(result.protected, true);
+  assert.strictEqual(result.name, ".git directory");
+});
+
+test("protects .git/config", () => {
+  const result = validator.isProtectedPath(".git/config");
+  assert.strictEqual(result.protected, true);
+});
+
+test("protects .git/hooks/pre-commit", () => {
+  const result = validator.isProtectedPath(".git/hooks/pre-commit");
+  assert.strictEqual(result.protected, true);
+});
+
+test("does not protect paths outside working dir", () => {
+  const result = validator.isProtectedPath("/etc/.env");
+  assert.strictEqual(result.protected, false);
+});
+
 // Symlink escape - critical security test
 test("blocks symlink that points outside working dir", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "leash-test-"));

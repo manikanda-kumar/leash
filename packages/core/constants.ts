@@ -34,6 +34,12 @@ export const TEMP_PATHS = [
 
 export const SAFE_WRITE_PATHS = [...DEVICE_PATHS, ...TEMP_PATHS];
 
+/** Protected paths within working directory - blocks write and delete operations */
+export const PROTECTED_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
+  { pattern: /^\.env($|\.(?!example$).+)/, name: ".env files" },
+  { pattern: /^\.git(\/|$)/, name: ".git directory" },
+];
+
 /** Blocked even within working directory - can destroy uncommitted work or remote history */
 export const DANGEROUS_GIT_PATTERNS: Array<{ pattern: RegExp; name: string }> =
   [

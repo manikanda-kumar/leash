@@ -13,6 +13,8 @@ export interface AnalysisResult {
   reason?: string;
 }
 
+const DELETE_COMMANDS = new Set(["rm", "rmdir", "unlink", "shred"]);
+
 export class CommandAnalyzer {
   private pathValidator: PathValidator;
 
@@ -35,6 +37,22 @@ export class CommandAnalyzer {
     return allowDevicePaths
       ? this.pathValidator.isSafeForWrite(resolved)
       : this.pathValidator.isTempPath(resolved);
+  }
+
+  private checkProtectedPath(
+    path: string,
+    context: string,
+    resolveBase?: string
+  ): AnalysisResult {
+    const resolved = this.resolvePath(path, resolveBase);
+    const protection = this.pathValidator.isProtectedPath(resolved);
+    if (protection.protected) {
+      return {
+        blocked: true,
+        reason: `${context} targets protected path: ${protection.name}`,
+      };
+    }
+    return { blocked: false };
   }
 
   private extractPaths(command: string): string[] {
@@ -189,6 +207,8 @@ export class CommandAnalyzer {
           reason: `Redirect to path outside working directory: ${path}`,
         };
       }
+      const result = this.checkProtectedPath(path, "Redirect");
+      if (result.blocked) return result;
     }
 
     return { blocked: false };
@@ -243,7 +263,128 @@ export class CommandAnalyzer {
             reason: `Command "${name}" targets path outside working directory: ${path}`,
           };
         }
+        const result = this.checkProtectedPath(path, `Command "${name}"`);
+        if (result.blocked) return result;
       }
+    }
+    return { blocked: false };
+  }
+
+  private checkCpCommand(
+    paths: string[],
+    resolveBase?: string
+  ): AnalysisResult {
+    if (paths.length === 0) return { blocked: false };
+
+    const dest = paths[paths.length - 1];
+    if (!this.isPathAllowed(dest, true, resolveBase)) {
+      return {
+        blocked: true,
+        reason: `Command "cp" targets path outside working directory: ${this.resolvePath(dest, resolveBase)}`,
+      };
+    }
+    return this.checkProtectedPath(dest, 'Command "cp"', resolveBase);
+  }
+
+  private checkDdCommand(
+    command: string,
+    resolveBase?: string
+  ): AnalysisResult {
+    const ofMatch = command.match(/\bof=["']?([^"'\s]+)["']?/);
+    if (!ofMatch) return { blocked: false };
+
+    const dest = ofMatch[1];
+    if (!this.isPathAllowed(dest, true, resolveBase)) {
+      return {
+        blocked: true,
+        reason: `Command "dd" targets path outside working directory: ${this.resolvePath(dest, resolveBase)}`,
+      };
+    }
+    return this.checkProtectedPath(dest, 'Command "dd"', resolveBase);
+  }
+
+  private checkMvCommand(
+    paths: string[],
+    resolveBase?: string
+  ): AnalysisResult {
+    if (paths.length === 0) return { blocked: false };
+
+    const dest = paths[paths.length - 1];
+    const sources = paths.slice(0, -1);
+
+    if (!this.isPathAllowed(dest, true, resolveBase)) {
+      return {
+        blocked: true,
+        reason: `Command "mv" targets path outside working directory: ${this.resolvePath(dest, resolveBase)}`,
+      };
+    }
+    const destResult = this.checkProtectedPath(
+      dest,
+      'Command "mv"',
+      resolveBase
+    );
+    if (destResult.blocked) return destResult;
+
+    for (const source of sources) {
+      if (!this.isPathAllowed(source, false, resolveBase)) {
+        return {
+          blocked: true,
+          reason: `Command "mv" targets path outside working directory: ${this.resolvePath(source, resolveBase)}`,
+        };
+      }
+      const sourceResult = this.checkProtectedPath(
+        source,
+        'Command "mv"',
+        resolveBase
+      );
+      if (sourceResult.blocked) return sourceResult;
+    }
+
+    return { blocked: false };
+  }
+
+  private checkDeleteCommand(
+    baseCmd: string,
+    paths: string[],
+    resolveBase?: string
+  ): AnalysisResult {
+    for (const path of paths) {
+      if (!this.isPathAllowed(path, false, resolveBase)) {
+        return {
+          blocked: true,
+          reason: `Command "${baseCmd}" targets path outside working directory: ${this.resolvePath(path, resolveBase)}`,
+        };
+      }
+      const result = this.checkProtectedPath(
+        path,
+        `Command "${baseCmd}"`,
+        resolveBase
+      );
+      if (result.blocked) return result;
+    }
+    return { blocked: false };
+  }
+
+  private checkWriteCommand(
+    baseCmd: string,
+    paths: string[],
+    resolveBase?: string
+  ): AnalysisResult {
+    const allowDevicePaths = baseCmd === "truncate";
+
+    for (const path of paths) {
+      if (!this.isPathAllowed(path, allowDevicePaths, resolveBase)) {
+        return {
+          blocked: true,
+          reason: `Command "${baseCmd}" targets path outside working directory: ${this.resolvePath(path, resolveBase)}`,
+        };
+      }
+      const result = this.checkProtectedPath(
+        path,
+        `Command "${baseCmd}"`,
+        resolveBase
+      );
+      if (result.blocked) return result;
     }
     return { blocked: false };
   }
@@ -260,52 +401,13 @@ export class CommandAnalyzer {
 
     const paths = this.extractPaths(command);
 
-    // cp: only destination matters, source is read-only
-    if (baseCmd === "cp" && paths.length > 0) {
-      const dest = paths[paths.length - 1];
-      if (!this.isPathAllowed(dest, true, resolveBase)) {
-        return {
-          blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${this.resolvePath(
-            dest,
-            resolveBase
-          )}`,
-        };
-      }
-      return { blocked: false };
-    }
+    if (baseCmd === "cp") return this.checkCpCommand(paths, resolveBase);
+    if (baseCmd === "dd") return this.checkDdCommand(command, resolveBase);
+    if (baseCmd === "mv") return this.checkMvCommand(paths, resolveBase);
+    if (DELETE_COMMANDS.has(baseCmd))
+      return this.checkDeleteCommand(baseCmd, paths, resolveBase);
 
-    // dd: only of= matters, if= is read-only
-    if (baseCmd === "dd") {
-      const ofMatch = command.match(/\bof=["']?([^"'\s]+)["']?/);
-      if (ofMatch && !this.isPathAllowed(ofMatch[1], true, resolveBase)) {
-        return {
-          blocked: true,
-          reason: `Command "dd" targets path outside working directory: ${this.resolvePath(
-            ofMatch[1],
-            resolveBase
-          )}`,
-        };
-      }
-      return { blocked: false };
-    }
-
-    // truncate: allow device paths like /dev/null
-    const allowDevicePaths = baseCmd === "truncate";
-
-    for (const path of paths) {
-      if (!this.isPathAllowed(path, allowDevicePaths, resolveBase)) {
-        return {
-          blocked: true,
-          reason: `Command "${baseCmd}" targets path outside working directory: ${this.resolvePath(
-            path,
-            resolveBase
-          )}`,
-        };
-      }
-    }
-
-    return { blocked: false };
+    return this.checkWriteCommand(baseCmd, paths, resolveBase);
   }
 
   analyze(command: string): AnalysisResult {
@@ -356,6 +458,6 @@ export class CommandAnalyzer {
       };
     }
 
-    return { blocked: false };
+    return this.checkProtectedPath(path, "File operation");
   }
 }

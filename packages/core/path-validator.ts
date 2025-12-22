@@ -1,7 +1,11 @@
 import { resolve, relative } from "path";
 import { homedir } from "os";
 import { realpathSync } from "fs";
-import { SAFE_WRITE_PATHS, TEMP_PATHS } from "./constants.js";
+import {
+  SAFE_WRITE_PATHS,
+  TEMP_PATHS,
+  PROTECTED_PATTERNS,
+} from "./constants.js";
 
 export class PathValidator {
   constructor(private workingDirectory: string) {}
@@ -56,5 +60,23 @@ export class PathValidator {
   isTempPath(path: string): boolean {
     const resolved = this.resolveReal(path);
     return this.matchesAny(resolved, TEMP_PATHS);
+  }
+
+  isProtectedPath(path: string): { protected: boolean; name?: string } {
+    if (!this.isWithinWorkingDir(path)) {
+      return { protected: false };
+    }
+
+    const realPath = this.resolveReal(path);
+    const realWorkDir = realpathSync(this.workingDirectory);
+    const relativePath = relative(realWorkDir, realPath);
+
+    for (const { pattern, name } of PROTECTED_PATTERNS) {
+      if (pattern.test(relativePath)) {
+        return { protected: true, name };
+      }
+    }
+
+    return { protected: false };
   }
 }

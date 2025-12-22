@@ -435,3 +435,100 @@ test("blocks cd home followed by dangerous command", () => {
   const result = analyzer.analyze('cd && rm -rf Documents');
   assert.strictEqual(result.blocked, true);
 });
+
+// Protected paths - .env files
+test("blocks rm .env", () => {
+  const result = analyzer.analyze("rm .env");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".env files"));
+});
+
+test("blocks rm .env.local", () => {
+  const result = analyzer.analyze("rm .env.local");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows rm .env.example", () => {
+  const result = analyzer.analyze("rm .env.example");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("blocks redirect to .env", () => {
+  const result = analyzer.analyze('echo "SECRET=123" > .env');
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".env files"));
+});
+
+test("blocks mv .env (source delete)", () => {
+  const result = analyzer.analyze("mv .env .env.backup");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("blocks cp to .env (dest write)", () => {
+  const result = analyzer.analyze("cp template .env");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("validatePath blocks .env", () => {
+  const result = analyzer.validatePath(".env");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".env files"));
+});
+
+test("validatePath blocks .env.local", () => {
+  const result = analyzer.validatePath(".env.local");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("validatePath allows .env.example", () => {
+  const result = analyzer.validatePath(".env.example");
+  assert.strictEqual(result.blocked, false);
+});
+
+// Protected paths - .git directory
+test("blocks rm -rf .git", () => {
+  const result = analyzer.analyze("rm -rf .git");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".git directory"));
+});
+
+test("blocks redirect to .git/config", () => {
+  const result = analyzer.analyze('echo "[user]" > .git/config');
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".git directory"));
+});
+
+test("blocks truncate .git/HEAD", () => {
+  const result = analyzer.analyze("truncate -s 0 .git/HEAD");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("blocks dd to .git/objects", () => {
+  const result = analyzer.analyze("dd if=/dev/zero of=.git/objects/pack");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("validatePath blocks .git/config", () => {
+  const result = analyzer.validatePath(".git/config");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".git directory"));
+});
+
+// Protected paths with dangerous patterns (find -delete, xargs rm, etc.)
+test("blocks find -delete on .env", () => {
+  const result = analyzer.analyze("find . -name '.env' -delete");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".env files"));
+});
+
+test("blocks find -exec rm on .git", () => {
+  const result = analyzer.analyze("find .git -type f -exec rm {} \\;");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".git directory"));
+});
+
+test("blocks xargs rm on .env files", () => {
+  const result = analyzer.analyze("echo .env.local | xargs rm");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes(".env files"));
+});
