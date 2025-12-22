@@ -169,3 +169,62 @@ test("validatePath allows empty path", () => {
   const result = analyzer.validatePath("");
   assert.strictEqual(result.blocked, false);
 });
+
+// Compound dangerous patterns: find -delete
+test("blocks find -delete outside working dir", () => {
+  const result = analyzer.analyze("find ~/Documents -name '*.tmp' -delete");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows find -delete inside working dir", () => {
+  const result = analyzer.analyze("find ./temp -name '*.tmp' -delete");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows find -delete in /tmp", () => {
+  const result = analyzer.analyze("find /tmp -name '*.log' -delete");
+  assert.strictEqual(result.blocked, false);
+});
+
+// Compound dangerous patterns: find -exec rm/mv/cp
+test("blocks find -exec rm outside working dir", () => {
+  const result = analyzer.analyze("find ~ -type f -exec rm {} \\;");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows find -exec rm inside working dir", () => {
+  const result = analyzer.analyze("find . -name '*.bak' -exec rm {} \\;");
+  assert.strictEqual(result.blocked, false);
+});
+
+// Compound dangerous patterns: xargs rm/mv/cp
+test("blocks xargs rm with path outside working dir", () => {
+  const result = analyzer.analyze("find ~/old -name '*.log' | xargs rm");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows xargs rm with path inside working dir", () => {
+  const result = analyzer.analyze("find ./logs -name '*.log' | xargs rm");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("blocks xargs with flags rm outside working dir", () => {
+  const result = analyzer.analyze("find ~ | xargs -I{} rm {}");
+  assert.strictEqual(result.blocked, true);
+});
+
+// Compound dangerous patterns: rsync --delete
+test("blocks rsync --delete outside working dir", () => {
+  const result = analyzer.analyze("rsync -av --delete ~/src/ ~/backup/");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows rsync --delete inside working dir", () => {
+  const result = analyzer.analyze("rsync -av --delete ./src/ ./backup/");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows rsync --delete to /tmp", () => {
+  const result = analyzer.analyze("rsync -av --delete ./src/ /tmp/backup/");
+  assert.strictEqual(result.blocked, false);
+});

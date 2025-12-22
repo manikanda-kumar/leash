@@ -21,6 +21,12 @@ var DANGEROUS_COMMANDS = /* @__PURE__ */ new Set([
   "dd",
   "ln"
 ]);
+var DANGEROUS_PATTERNS = [
+  { pattern: /\bfind\b.*\s-delete\b/, name: "find -delete" },
+  { pattern: /\bfind\b.*-exec\s+(rm|mv|cp)\b/, name: "find -exec" },
+  { pattern: /\bxargs\s+(-[^\s]+\s+)*(rm|mv|cp)\b/, name: "xargs" },
+  { pattern: /\brsync\b.*--delete\b/, name: "rsync --delete" }
+];
 var REDIRECT_PATTERN = />{1,2}\s*(?:"([^"]+)"|'([^']+)'|([^\s;|&>]+))/g;
 var DEVICE_PATHS = ["/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr"];
 var TEMP_PATHS = [
@@ -221,6 +227,22 @@ var CommandAnalyzer = class {
     if (this.pathValidator.isWithinWorkingDir(path)) return true;
     return allowDevicePaths ? this.pathValidator.isSafeForWrite(path) : this.pathValidator.isTempPath(path);
   }
+  /** Check compound dangerous patterns (find -delete, xargs rm, etc.) */
+  checkDangerousPatterns(command) {
+    for (const { pattern, name } of DANGEROUS_PATTERNS) {
+      if (!pattern.test(command)) continue;
+      const paths = this.extractPaths(command);
+      for (const path of paths) {
+        if (!this.isPathAllowed(path, false)) {
+          return {
+            blocked: true,
+            reason: `Command "${name}" targets path outside working directory: ${path}`
+          };
+        }
+      }
+    }
+    return { blocked: false };
+  }
   /** Check dangerous commands for external paths */
   checkDangerousCommand(command) {
     const baseCmd = this.getBaseCommand(command);
@@ -266,6 +288,8 @@ var CommandAnalyzer = class {
   analyze(command) {
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
+    const patternResult = this.checkDangerousPatterns(command);
+    if (patternResult.blocked) return patternResult;
     const commands = this.splitCommands(command);
     for (const cmd of commands) {
       const trimmed = cmd.trim();

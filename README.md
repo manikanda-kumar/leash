@@ -104,11 +104,12 @@ cd ~/leash && git pull
 ## Features
 
 - **Path Sandboxing** — Restricts file operations to working directory, `/tmp`, and `/var/tmp`
-- **Dangerous Command Blocking** — Intercepts `rm`, `mv`, `cp`, `chmod`, `chown`, `dd`, and more
+- **Dangerous Command Blocking** — Intercepts `rm`, `mv`, `cp`, `chmod`, `chown`, `dd`, `ln`, `truncate`, and more
+- **Compound Pattern Detection** — Catches `find -delete`, `find -exec rm`, `xargs rm`, `rsync --delete`
 - **Symlink Resolution** — Prevents symlink-based escapes to external directories
 - **Command Chain Analysis** — Parses `&&`, `||`, `;`, `|` chains for hidden threats
-- **Shell Wrapper Detection** — Catches `bash -c`, `eval`, `exec` executing dangerous code
-- **Interpreter Monitoring** — Detects filesystem operations in `python -c`, `node -e`, `ruby -e`
+- **Redirect Interception** — Blocks `>` and `>>` redirects to paths outside working directory
+- **Wrapper Command Handling** — Detects dangerous commands behind `sudo`, `env`, `command`
 - **Variable Expansion** — Resolves `$HOME`, `~`, and environment variables before validation
 
 ## How It Works
@@ -128,40 +129,95 @@ cd ~/leash && git pull
 
 ### Security Layers
 
-1. **Pattern Detection** — Scans for dangerous patterns like command substitution `$(...)`, redirects to external paths
-2. **Interpreter Analysis** — Checks inline code execution for filesystem operations
-3. **Shell Wrapper Inspection** — Analyzes wrapped commands for hidden dangerous operations
-4. **Path Validation** — Resolves and validates all paths against the working directory
+1. **Redirect Detection** — Catches `>` and `>>` redirects to external paths
+2. **Compound Pattern Detection** — Scans for `find -delete`, `xargs rm`, `rsync --delete` patterns
+3. **Command Chain Parsing** — Splits `&&`, `||`, `;`, `|` and analyzes each command
+4. **Dangerous Command Blocking** — Blocks `rm`, `mv`, `cp`, etc. targeting external paths
+5. **Path Validation** — Resolves symlinks, expands `~/$HOME`, validates against working directory
 
 ## What Gets Blocked
 
+### Dangerous Commands
+
 ```bash
-# ❌ Blocked: Path outside working directory
-rm -rf ~/Documents
+rm -rf ~/Documents           # ❌ Delete outside working dir
+mv ~/.bashrc /tmp/           # ❌ Move from outside
+cp ./secrets ~/leaked        # ❌ Copy to outside
+chmod 777 /etc/hosts         # ❌ Permission change outside
+chown user ~/file            # ❌ Ownership change outside
+ln -s ./file ~/link          # ❌ Symlink to outside
+dd if=/dev/zero of=~/file    # ❌ Write outside
+truncate -s 0 ~/file         # ❌ Truncate outside
+```
 
-# ❌ Blocked: Home directory reference
-mv ~/.bashrc ~/.bashrc.bak
+### Redirects
 
-# ❌ Blocked: Absolute path escape
-cp /etc/passwd ./
+```bash
+echo "data" > ~/file.txt     # ❌ Redirect to home
+echo "log" >> ~/app.log      # ❌ Append to home
+cat secrets > "/tmp/../~/x"  # ❌ Path traversal in redirect
+```
 
-# ❌ Blocked: Shell wrapper with dangerous command
-bash -c "rm -rf ~/*"
+### Command Chains
 
-# ❌ Blocked: Interpreter filesystem operation
-python -c "import shutil; shutil.rmtree('/home/user')"
+```bash
+echo ok && rm ~/file         # ❌ Dangerous command after &&
+false || rm -rf ~/           # ❌ Dangerous command after ||
+ls; rm ~/file                # ❌ Dangerous command after ;
+cat x | rm ~/file            # ❌ Dangerous command in pipe
+```
 
-# ❌ Blocked: Command substitution
-echo $(rm -rf ~)
+### Wrapper Commands
 
-# ✅ Allowed: Operations within working directory
+```bash
+sudo rm -rf ~/dir            # ❌ sudo + dangerous command
+env rm ~/file                # ❌ env + dangerous command
+command rm ~/file            # ❌ command + dangerous command
+```
+
+### Compound Patterns
+
+```bash
+find ~ -name "*.tmp" -delete          # ❌ find -delete outside
+find ~ -exec rm {} \;                 # ❌ find -exec rm outside
+find ~/logs | xargs rm                # ❌ xargs rm outside
+find ~ | xargs -I{} mv {} /tmp        # ❌ xargs mv outside
+rsync -av --delete ~/src/ ~/dst/      # ❌ rsync --delete outside
+```
+
+### File Operations (Write/Edit tools)
+
+```bash
+/etc/passwd                  # ❌ System file
+~/.bashrc                    # ❌ Home directory file
+/home/user/.ssh/id_rsa       # ❌ Absolute path outside
+../../../etc/hosts           # ❌ Path traversal
+```
+
+---
+
+## What's Allowed
+
+```bash
+# ✅ Working directory operations
 rm -rf ./node_modules
 mv ./old.ts ./new.ts
-cp ./template.json ./config.json
+cp ./src/config.json ./dist/
+find . -name "*.bak" -delete
+find ./logs | xargs rm
 
-# ✅ Allowed: Temp directory operations
-echo "cache" > /tmp/build-cache.txt
-rm -rf /tmp/my-app-cache
+# ✅ Temp directory operations
+rm -rf /tmp/build-cache
+echo "data" > /tmp/output.txt
+rsync -av --delete ./src/ /tmp/backup/
+
+# ✅ Device paths
+echo "x" > /dev/null
+truncate -s 0 /dev/null
+
+# ✅ Read from anywhere (safe)
+cp /etc/hosts ./local-hosts
+cat /etc/passwd
 ```
 
 ## Limitations

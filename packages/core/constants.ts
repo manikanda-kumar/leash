@@ -14,6 +14,14 @@ export const DANGEROUS_COMMANDS = new Set([
   "ln",
 ]);
 
+/** Compound command patterns that are dangerous - e.g. find -delete, xargs rm */
+export const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
+  { pattern: /\bfind\b.*\s-delete\b/, name: "find -delete" },
+  { pattern: /\bfind\b.*-exec\s+(rm|mv|cp)\b/, name: "find -exec" },
+  { pattern: /\bxargs\s+(-[^\s]+\s+)*(rm|mv|cp)\b/, name: "xargs" },
+  { pattern: /\brsync\b.*--delete\b/, name: "rsync --delete" },
+];
+
 /** Pattern to detect redirects to file paths (quoted or unquoted) */
 export const REDIRECT_PATTERN =
   />{1,2}\s*(?:"([^"]+)"|'([^']+)'|([^\s;|&>]+))/g;

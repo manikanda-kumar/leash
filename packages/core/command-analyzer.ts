@@ -1,6 +1,10 @@
 import { basename } from "path";
 import { PathValidator } from "./path-validator.js";
-import { DANGEROUS_COMMANDS, REDIRECT_PATTERN } from "./constants.js";
+import {
+  DANGEROUS_COMMANDS,
+  DANGEROUS_PATTERNS,
+  REDIRECT_PATTERN,
+} from "./constants.js";
 
 export interface AnalysisResult {
   blocked: boolean;
@@ -191,6 +195,24 @@ export class CommandAnalyzer {
       : this.pathValidator.isTempPath(path);
   }
 
+  /** Check compound dangerous patterns (find -delete, xargs rm, etc.) */
+  private checkDangerousPatterns(command: string): AnalysisResult {
+    for (const { pattern, name } of DANGEROUS_PATTERNS) {
+      if (!pattern.test(command)) continue;
+
+      const paths = this.extractPaths(command);
+      for (const path of paths) {
+        if (!this.isPathAllowed(path, false)) {
+          return {
+            blocked: true,
+            reason: `Command "${name}" targets path outside working directory: ${path}`,
+          };
+        }
+      }
+    }
+    return { blocked: false };
+  }
+
   /** Check dangerous commands for external paths */
   private checkDangerousCommand(command: string): AnalysisResult {
     const baseCmd = this.getBaseCommand(command);
@@ -248,6 +270,10 @@ export class CommandAnalyzer {
     // Check redirects
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
+
+    // Check compound dangerous patterns on full command first
+    const patternResult = this.checkDangerousPatterns(command);
+    if (patternResult.blocked) return patternResult;
 
     // Split by chain operators and check each
     const commands = this.splitCommands(command);
