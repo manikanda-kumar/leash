@@ -6,7 +6,6 @@ import { SAFE_WRITE_PATHS, TEMP_PATHS } from "./constants.js";
 export class PathValidator {
   constructor(private workingDirectory: string) {}
 
-  /** Expand ~ and environment variables in path */
   private expand(path: string): string {
     return path
       .replace(/^~(?=\/|$)/, homedir())
@@ -17,7 +16,6 @@ export class PathValidator {
       });
   }
 
-  /** Resolve path following all symlinks (including parent directories) */
   private resolveReal(path: string): string {
     const expanded = this.expand(path);
     const resolved = resolve(this.workingDirectory, expanded);

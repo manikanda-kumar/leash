@@ -1,6 +1,6 @@
 # Leash 🔒
 
-**Security guardrails for AI coding agents.** Sandboxes file system access, blocks dangerous commands outside project directory, catches agent hallucinations before they cause damage.
+**Security guardrails for AI coding agents.** Sandboxes file system access, blocks dangerous commands outside project directory, prevents destructive git operations, catches agent hallucinations before they cause damage.
 
 ## Why Leash?
 
@@ -105,6 +105,7 @@ cd ~/leash && git pull
 
 - **Path Sandboxing** — Restricts file operations to working directory, `/tmp`, and `/var/tmp`
 - **Dangerous Command Blocking** — Intercepts `rm`, `mv`, `cp`, `chmod`, `chown`, `dd`, `ln`, `truncate`, and more
+- **Dangerous Git Command Blocking** — Blocks destructive git commands like `reset --hard`, `push --force`, `clean -f`
 - **Compound Pattern Detection** — Catches `find -delete`, `find -exec rm`, `xargs rm`, `rsync --delete`
 - **Symlink Resolution** — Prevents symlink-based escapes to external directories
 - **Command Chain Analysis** — Parses `&&`, `||`, `;`, `|` chains for hidden threats
@@ -129,11 +130,12 @@ cd ~/leash && git pull
 
 ### Security Layers
 
-1. **Redirect Detection** — Catches `>` and `>>` redirects to external paths
-2. **Compound Pattern Detection** — Scans for `find -delete`, `xargs rm`, `rsync --delete` patterns
-3. **Command Chain Parsing** — Splits `&&`, `||`, `;`, `|` and analyzes each command
-4. **Dangerous Command Blocking** — Blocks `rm`, `mv`, `cp`, etc. targeting external paths
-5. **Path Validation** — Resolves symlinks, expands `~/$HOME`, validates against working directory
+1. **Dangerous Git Command Blocking** — Blocks destructive git commands unconditionally
+2. **Redirect Detection** — Catches `>` and `>>` redirects to external paths
+3. **Compound Pattern Detection** — Scans for `find -delete`, `xargs rm`, `rsync --delete` patterns
+4. **Command Chain Parsing** — Splits `&&`, `||`, `;`, `|` and analyzes each command
+5. **Dangerous Command Blocking** — Blocks `rm`, `mv`, `cp`, etc. targeting external paths
+6. **Path Validation** — Resolves symlinks, expands `~/$HOME`, validates against working directory
 
 ## What Gets Blocked
 
@@ -148,6 +150,23 @@ chown user ~/file            # ❌ Ownership change outside
 ln -s ./file ~/link          # ❌ Symlink to outside
 dd if=/dev/zero of=~/file    # ❌ Write outside
 truncate -s 0 ~/file         # ❌ Truncate outside
+```
+
+### Dangerous Git Commands
+
+```bash
+git checkout -- .            # ❌ Discards uncommitted changes
+git restore src/file.ts      # ❌ Discards uncommitted changes
+git reset --hard             # ❌ Destroys all uncommitted changes
+git reset --hard HEAD~1      # ❌ Destroys commits and changes
+git reset --merge            # ❌ Can lose uncommitted changes
+git clean -f                 # ❌ Removes untracked files permanently
+git clean -fd                # ❌ Removes untracked files and directories
+git push --force             # ❌ Destroys remote history
+git push -f origin main      # ❌ Destroys remote history
+git branch -D feature        # ❌ Force-deletes branch without merge check
+git stash drop               # ❌ Permanently deletes stashed changes
+git stash clear              # ❌ Deletes ALL stashed changes
 ```
 
 ### Redirects
@@ -218,6 +237,19 @@ truncate -s 0 /dev/null
 # ✅ Read from anywhere (safe)
 cp /etc/hosts ./local-hosts
 cat /etc/passwd
+
+# ✅ Safe git commands
+git status
+git add .
+git commit -m "message"
+git push origin main
+git checkout main
+git checkout -b feature/new
+git branch -d merged-branch      # lowercase -d is safe
+git reset --soft HEAD~1          # soft reset is safe
+git restore --staged .           # unstaging is safe
+git stash
+git stash pop
 ```
 
 ## Limitations

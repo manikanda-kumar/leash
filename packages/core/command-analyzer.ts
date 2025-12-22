@@ -3,6 +3,7 @@ import { PathValidator } from "./path-validator.js";
 import {
   DANGEROUS_COMMANDS,
   DANGEROUS_PATTERNS,
+  DANGEROUS_GIT_PATTERNS,
   REDIRECT_PATTERN,
 } from "./constants.js";
 
@@ -18,22 +19,18 @@ export class CommandAnalyzer {
     this.pathValidator = new PathValidator(workingDirectory);
   }
 
-  /** Extract potential paths from command string */
   private extractPaths(command: string): string[] {
     const paths: string[] = [];
 
-    // Match quoted strings
     const quoted = command.match(/["']([^"']+)["']/g) || [];
     quoted.forEach((q) => paths.push(q.slice(1, -1)));
 
-    // Match unquoted paths
     const tokens = command
       .replace(/["'][^"']*["']/g, "")
       .split(/\s+/)
       .filter((t) => !t.startsWith("-"));
 
     tokens.forEach((t) => {
-      // Handle key=value format (e.g., dd of=~/file)
       const value = t.includes("=") ? t.split("=").slice(1).join("=") : t;
 
       if (
@@ -49,7 +46,6 @@ export class CommandAnalyzer {
     return paths;
   }
 
-  /** Get base command name, skipping common wrapper commands (sudo/env/command) */
   private getBaseCommand(command: string): string {
     const tokens = command.trim().split(/\s+/);
     if (tokens.length === 0) return "";
@@ -106,7 +102,6 @@ export class CommandAnalyzer {
     return basename(tokens[0] || "");
   }
 
-  /** Split command by chain operators while respecting quotes */
   private splitCommands(command: string): string[] {
     const commands: string[] = [];
     let current = "";
@@ -187,7 +182,6 @@ export class CommandAnalyzer {
     return { blocked: false };
   }
 
-  /** Check if path is allowed for the operation */
   private isPathAllowed(path: string, allowDevicePaths: boolean): boolean {
     if (this.pathValidator.isWithinWorkingDir(path)) return true;
     return allowDevicePaths
@@ -195,7 +189,18 @@ export class CommandAnalyzer {
       : this.pathValidator.isTempPath(path);
   }
 
-  /** Check compound dangerous patterns (find -delete, xargs rm, etc.) */
+  private checkDangerousGitCommands(command: string): AnalysisResult {
+    for (const { pattern, name } of DANGEROUS_GIT_PATTERNS) {
+      if (pattern.test(command)) {
+        return {
+          blocked: true,
+          reason: `Dangerous git command blocked: ${name}`,
+        };
+      }
+    }
+    return { blocked: false };
+  }
+
   private checkDangerousPatterns(command: string): AnalysisResult {
     for (const { pattern, name } of DANGEROUS_PATTERNS) {
       if (!pattern.test(command)) continue;
@@ -213,7 +218,6 @@ export class CommandAnalyzer {
     return { blocked: false };
   }
 
-  /** Check dangerous commands for external paths */
   private checkDangerousCommand(command: string): AnalysisResult {
     const baseCmd = this.getBaseCommand(command);
 
@@ -265,17 +269,16 @@ export class CommandAnalyzer {
     return { blocked: false };
   }
 
-  /** Analyze command for dangerous operations */
   analyze(command: string): AnalysisResult {
-    // Check redirects
+    const gitResult = this.checkDangerousGitCommands(command);
+    if (gitResult.blocked) return gitResult;
+
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
 
-    // Check compound dangerous patterns on full command first
     const patternResult = this.checkDangerousPatterns(command);
     if (patternResult.blocked) return patternResult;
 
-    // Split by chain operators and check each
     const commands = this.splitCommands(command);
 
     for (const cmd of commands) {

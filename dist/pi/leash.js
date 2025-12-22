@@ -36,13 +36,26 @@ var TEMP_PATHS = [
   "/private/var/tmp"
 ];
 var SAFE_WRITE_PATHS = [...DEVICE_PATHS, ...TEMP_PATHS];
+var DANGEROUS_GIT_PATTERNS = [
+  { pattern: /\bgit\s+checkout\b.*\s--\s/, name: "git checkout --" },
+  { pattern: /\bgit\s+restore\s+(?!--staged)/, name: "git restore" },
+  { pattern: /\bgit\s+reset\s+.*--hard\b/, name: "git reset --hard" },
+  { pattern: /\bgit\s+reset\s+.*--merge\b/, name: "git reset --merge" },
+  {
+    pattern: /\bgit\s+clean\s+.*(-[a-zA-Z]*f[a-zA-Z]*|--force)\b/,
+    name: "git clean --force"
+  },
+  { pattern: /\bgit\s+push\s+.*(-f|--force)\b/, name: "git push --force" },
+  { pattern: /\bgit\s+branch\s+.*-D\b/, name: "git branch -D" },
+  { pattern: /\bgit\s+stash\s+drop\b/, name: "git stash drop" },
+  { pattern: /\bgit\s+stash\s+clear\b/, name: "git stash clear" }
+];
 
 // packages/core/path-validator.ts
 var PathValidator = class {
   constructor(workingDirectory) {
     this.workingDirectory = workingDirectory;
   }
-  /** Expand ~ and environment variables in path */
   expand(path) {
     return path.replace(/^~(?=\/|$)/, homedir()).replace(/\$\{?(\w+)\}?/g, (_, name) => {
       if (name === "HOME") return homedir();
@@ -50,7 +63,6 @@ var PathValidator = class {
       return process.env[name] || "";
     });
   }
-  /** Resolve path following all symlinks (including parent directories) */
   resolveReal(path) {
     const expanded = this.expand(path);
     const resolved = resolve(this.workingDirectory, expanded);
@@ -93,7 +105,6 @@ var CommandAnalyzer = class {
     this.pathValidator = new PathValidator(workingDirectory);
   }
   pathValidator;
-  /** Extract potential paths from command string */
   extractPaths(command) {
     const paths = [];
     const quoted = command.match(/["']([^"']+)["']/g) || [];
@@ -107,7 +118,6 @@ var CommandAnalyzer = class {
     });
     return paths;
   }
-  /** Get base command name, skipping common wrapper commands (sudo/env/command) */
   getBaseCommand(command) {
     const tokens = command.trim().split(/\s+/);
     if (tokens.length === 0) return "";
@@ -159,7 +169,6 @@ var CommandAnalyzer = class {
     }
     return basename(tokens[0] || "");
   }
-  /** Split command by chain operators while respecting quotes */
   splitCommands(command) {
     const commands = [];
     let current = "";
@@ -222,12 +231,21 @@ var CommandAnalyzer = class {
     }
     return { blocked: false };
   }
-  /** Check if path is allowed for the operation */
   isPathAllowed(path, allowDevicePaths) {
     if (this.pathValidator.isWithinWorkingDir(path)) return true;
     return allowDevicePaths ? this.pathValidator.isSafeForWrite(path) : this.pathValidator.isTempPath(path);
   }
-  /** Check compound dangerous patterns (find -delete, xargs rm, etc.) */
+  checkDangerousGitCommands(command) {
+    for (const { pattern, name } of DANGEROUS_GIT_PATTERNS) {
+      if (pattern.test(command)) {
+        return {
+          blocked: true,
+          reason: `Dangerous git command blocked: ${name}`
+        };
+      }
+    }
+    return { blocked: false };
+  }
   checkDangerousPatterns(command) {
     for (const { pattern, name } of DANGEROUS_PATTERNS) {
       if (!pattern.test(command)) continue;
@@ -243,7 +261,6 @@ var CommandAnalyzer = class {
     }
     return { blocked: false };
   }
-  /** Check dangerous commands for external paths */
   checkDangerousCommand(command) {
     const baseCmd = this.getBaseCommand(command);
     if (!DANGEROUS_COMMANDS.has(baseCmd)) {
@@ -284,8 +301,9 @@ var CommandAnalyzer = class {
     }
     return { blocked: false };
   }
-  /** Analyze command for dangerous operations */
   analyze(command) {
+    const gitResult = this.checkDangerousGitCommands(command);
+    if (gitResult.blocked) return gitResult;
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
     const patternResult = this.checkDangerousPatterns(command);

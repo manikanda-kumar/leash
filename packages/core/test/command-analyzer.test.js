@@ -228,3 +228,174 @@ test("allows rsync --delete to /tmp", () => {
   const result = analyzer.analyze("rsync -av --delete ./src/ /tmp/backup/");
   assert.strictEqual(result.blocked, false);
 });
+
+// Dangerous git commands - blocked even within working directory
+
+// git checkout -- <files>
+test("blocks git checkout -- (discards changes)", () => {
+  const result = analyzer.analyze("git checkout -- .");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git checkout --"));
+});
+
+test("blocks git checkout with path and --", () => {
+  const result = analyzer.analyze("git checkout HEAD -- src/file.ts");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows git checkout for branch switching", () => {
+  const result = analyzer.analyze("git checkout main");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git checkout -b for new branch", () => {
+  const result = analyzer.analyze("git checkout -b feature/new");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git restore
+test("blocks git restore (discards changes)", () => {
+  const result = analyzer.analyze("git restore .");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git restore"));
+});
+
+test("blocks git restore with file path", () => {
+  const result = analyzer.analyze("git restore src/file.ts");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows git restore --staged (safe - unstages)", () => {
+  const result = analyzer.analyze("git restore --staged .");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git reset --hard
+test("blocks git reset --hard", () => {
+  const result = analyzer.analyze("git reset --hard");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git reset --hard"));
+});
+
+test("blocks git reset --hard with ref", () => {
+  const result = analyzer.analyze("git reset --hard HEAD~1");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows git reset without --hard (soft reset)", () => {
+  const result = analyzer.analyze("git reset HEAD~1");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git reset --soft", () => {
+  const result = analyzer.analyze("git reset --soft HEAD~1");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git reset --merge
+test("blocks git reset --merge", () => {
+  const result = analyzer.analyze("git reset --merge");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git reset --merge"));
+});
+
+// git clean -f/--force
+test("blocks git clean -f", () => {
+  const result = analyzer.analyze("git clean -f");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git clean"));
+});
+
+test("blocks git clean --force", () => {
+  const result = analyzer.analyze("git clean --force");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("blocks git clean -fd", () => {
+  const result = analyzer.analyze("git clean -fd");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows git clean -n (dry run)", () => {
+  const result = analyzer.analyze("git clean -n");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git push --force/-f
+test("blocks git push --force", () => {
+  const result = analyzer.analyze("git push --force");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git push --force"));
+});
+
+test("blocks git push -f", () => {
+  const result = analyzer.analyze("git push -f");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("blocks git push origin main --force", () => {
+  const result = analyzer.analyze("git push origin main --force");
+  assert.strictEqual(result.blocked, true);
+});
+
+test("allows git push (normal)", () => {
+  const result = analyzer.analyze("git push origin main");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git branch -D
+test("blocks git branch -D", () => {
+  const result = analyzer.analyze("git branch -D feature/old");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git branch -D"));
+});
+
+test("allows git branch -d (safe delete)", () => {
+  const result = analyzer.analyze("git branch -d feature/merged");
+  assert.strictEqual(result.blocked, false);
+});
+
+// git stash drop
+test("blocks git stash drop", () => {
+  const result = analyzer.analyze("git stash drop");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git stash drop"));
+});
+
+test("blocks git stash drop with index", () => {
+  const result = analyzer.analyze("git stash drop stash@{0}");
+  assert.strictEqual(result.blocked, true);
+});
+
+// git stash clear
+test("blocks git stash clear", () => {
+  const result = analyzer.analyze("git stash clear");
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("git stash clear"));
+});
+
+// Safe git commands (should not be blocked)
+test("allows git status", () => {
+  const result = analyzer.analyze("git status");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git add", () => {
+  const result = analyzer.analyze("git add .");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git commit", () => {
+  const result = analyzer.analyze("git commit -m 'test'");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git stash (save)", () => {
+  const result = analyzer.analyze("git stash");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows git stash pop", () => {
+  const result = analyzer.analyze("git stash pop");
+  assert.strictEqual(result.blocked, false);
+});

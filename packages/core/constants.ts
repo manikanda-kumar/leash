@@ -1,4 +1,3 @@
-/** Commands that modify filesystem - blocked outside working directory */
 export const DANGEROUS_COMMANDS = new Set([
   "rm",
   "rmdir",
@@ -14,7 +13,6 @@ export const DANGEROUS_COMMANDS = new Set([
   "ln",
 ]);
 
-/** Compound command patterns that are dangerous - e.g. find -delete, xargs rm */
 export const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /\bfind\b.*\s-delete\b/, name: "find -delete" },
   { pattern: /\bfind\b.*-exec\s+(rm|mv|cp)\b/, name: "find -exec" },
@@ -22,7 +20,6 @@ export const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /\brsync\b.*--delete\b/, name: "rsync --delete" },
 ];
 
-/** Pattern to detect redirects to file paths (quoted or unquoted) */
 export const REDIRECT_PATTERN =
   />{1,2}\s*(?:"([^"]+)"|'([^']+)'|([^\s;|&>]+))/g;
 
@@ -36,3 +33,20 @@ export const TEMP_PATHS = [
 ];
 
 export const SAFE_WRITE_PATHS = [...DEVICE_PATHS, ...TEMP_PATHS];
+
+/** Blocked even within working directory - can destroy uncommitted work or remote history */
+export const DANGEROUS_GIT_PATTERNS: Array<{ pattern: RegExp; name: string }> =
+  [
+    { pattern: /\bgit\s+checkout\b.*\s--\s/, name: "git checkout --" },
+    { pattern: /\bgit\s+restore\s+(?!--staged)/, name: "git restore" },
+    { pattern: /\bgit\s+reset\s+.*--hard\b/, name: "git reset --hard" },
+    { pattern: /\bgit\s+reset\s+.*--merge\b/, name: "git reset --merge" },
+    {
+      pattern: /\bgit\s+clean\s+.*(-[a-zA-Z]*f[a-zA-Z]*|--force)\b/,
+      name: "git clean --force",
+    },
+    { pattern: /\bgit\s+push\s+.*(-f|--force)\b/, name: "git push --force" },
+    { pattern: /\bgit\s+branch\s+.*-D\b/, name: "git branch -D" },
+    { pattern: /\bgit\s+stash\s+drop\b/, name: "git stash drop" },
+    { pattern: /\bgit\s+stash\s+clear\b/, name: "git stash clear" },
+  ];
