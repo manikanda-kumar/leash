@@ -6,3 +6,4 @@ AGENTS.md
 todo.md
 package-lock.json
 yarn.lock
+benchmark.js

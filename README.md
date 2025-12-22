@@ -4,14 +4,12 @@
 
 ## Why Leash?
 
-AI coding agents are powerful but unpredictable. A single hallucination or misunderstood instruction can lead to:
+AI agents can hallucinate dangerous commands. Leash sandboxes them:
 
-- Deleted files outside your project
-- Modified system configurations
-- Exposed sensitive data
-- Corrupted home directory
-
-Leash acts as a security layer between the AI agent and your system, ensuring all file operations stay within your project boundaries.
+- Blocks `rm`, `mv`, `cp`, `chmod` outside working directory
+- Blocks `git reset --hard`, `push --force`, `clean -f`
+- Resolves symlinks to prevent directory escapes
+- Analyzes command chains (`&&`, `||`, `;`, `|`)
 
 ![Claude Code](assets/claude-code.png)
 
@@ -21,9 +19,8 @@ Leash acts as a security layer between the AI agent and your system, ensuring al
 git clone https://github.com/melihmucuk/leash.git ~/leash
 ```
 
-Then configure your agent:
-
-### Pi Coding Agent — [docs](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/hooks.md)
+<details>
+<summary><b>Pi Coding Agent</b> - <a href="https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/hooks.md">docs</a></summary>
 
 Add to `~/.pi/agent/settings.json`:
 
@@ -33,13 +30,19 @@ Add to `~/.pi/agent/settings.json`:
 }
 ```
 
-### OpenCode — [docs](https://opencode.ai/docs/plugins/)
+</details>
+
+<details>
+<summary><b>OpenCode</b> - <a href="https://opencode.ai/docs/plugins/">docs</a></summary>
 
 ```bash
 ln -s ~/leash/dist/opencode/leash.js ~/.config/opencode/plugin/leash.js
 ```
 
-### Claude Code — [docs](https://code.claude.com/docs/en/hooks-guide)
+</details>
+
+<details>
+<summary><b>Claude Code</b> - <a href="https://code.claude.com/docs/en/hooks-guide">docs</a></summary>
 
 Add to `~/.claude/settings.json`:
 
@@ -61,7 +64,10 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-### Factory Droid — [docs](https://docs.factory.ai/cli/configuration/hooks-guide)
+</details>
+
+<details>
+<summary><b>Factory Droid</b> - <a href="https://docs.factory.ai/cli/configuration/hooks-guide">docs</a></summary>
 
 Add to `~/.factory/settings.json`:
 
@@ -83,61 +89,40 @@ Add to `~/.factory/settings.json`:
 }
 ```
 
-Restart your agent — done!
+</details>
 
-## Update
-
-```bash
-cd ~/leash && git pull
-```
-
-## Supported Platforms
-
-| Platform      | Status     | Plugin Path                 |
-| ------------- | ---------- | --------------------------- |
-| Pi            | ✅ Ready   | `dist/pi/leash.js`          |
-| OpenCode      | ✅ Ready   | `dist/opencode/leash.js`    |
-| Claude Code   | ✅ Ready   | `dist/claude-code/leash.js` |
-| Factory Droid | ✅ Ready   | `dist/factory/leash.js`     |
-| AMP Code      | 🚧 Planned | Coming soon                 |
-
-## Features
-
-- **Path Sandboxing** — Restricts file operations to working directory, `/tmp`, and `/var/tmp`
-- **Dangerous Command Blocking** — Intercepts `rm`, `mv`, `cp`, `chmod`, `chown`, `dd`, `ln`, `truncate`, and more
-- **Dangerous Git Command Blocking** — Blocks destructive git commands like `reset --hard`, `push --force`, `clean -f`
-- **Compound Pattern Detection** — Catches `find -delete`, `find -exec rm`, `xargs rm`, `rsync --delete`
-- **Symlink Resolution** — Prevents symlink-based escapes to external directories
-- **Command Chain Analysis** — Parses `&&`, `||`, `;`, `|` chains for hidden threats
-- **Redirect Interception** — Blocks `>` and `>>` redirects to paths outside working directory
-- **Wrapper Command Handling** — Detects dangerous commands behind `sudo`, `env`, `command`
-- **Variable Expansion** — Resolves `$HOME`, `~`, and environment variables before validation
-
-## How It Works
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  AI Agent   │────▶│    Leash    │────▶│   System    │
-│             │     │  (Analyze)  │     │   (Shell)   │
-└─────────────┘     └─────────────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │   BLOCKED   │
-                    │  (if unsafe)│
-                    └─────────────┘
-```
-
-### Security Layers
-
-1. **Dangerous Git Command Blocking** — Blocks destructive git commands unconditionally
-2. **Redirect Detection** — Catches `>` and `>>` redirects to external paths
-3. **Compound Pattern Detection** — Scans for `find -delete`, `xargs rm`, `rsync --delete` patterns
-4. **Command Chain Parsing** — Splits `&&`, `||`, `;`, `|` and analyzes each command
-5. **Dangerous Command Blocking** — Blocks `rm`, `mv`, `cp`, etc. targeting external paths
-6. **Path Validation** — Resolves symlinks, expands `~/$HOME`, validates against working directory
+Restart your agent. Done! Update anytime with `cd ~/leash && git pull`.
 
 ## What Gets Blocked
+
+```bash
+# Dangerous commands outside working directory
+rm -rf ~/Documents                # ❌ Delete outside working dir
+mv ~/.bashrc /tmp/                # ❌ Move from outside
+echo "data" > ~/file.txt          # ❌ Redirect to home
+
+# Dangerous git commands (blocked everywhere)
+git reset --hard                  # ❌ Destroys uncommitted changes
+git push --force                  # ❌ Destroys remote history
+git clean -fd                     # ❌ Removes untracked files
+
+# File operations via Write/Edit tools
+~/.bashrc                         # ❌ Home directory file
+../../../etc/hosts                # ❌ Path traversal
+```
+
+## What's Allowed
+
+```bash
+rm -rf ./node_modules             # ✅ Working directory
+rm -rf /tmp/build-cache           # ✅ Temp directory
+git commit -m "message"           # ✅ Safe git commands
+git push origin main              # ✅ Normal push (no --force)
+```
+
+<details>
+
+<summary><b>Detailed Examples</b></summary>
 
 ### Dangerous Commands
 
@@ -213,32 +198,30 @@ rsync -av --delete ~/src/ ~/dst/      # ❌ rsync --delete outside
 ../../../etc/hosts           # ❌ Path traversal
 ```
 
----
-
-## What's Allowed
+### What's Allowed (Full List)
 
 ```bash
-# ✅ Working directory operations
+# Working directory operations
 rm -rf ./node_modules
 mv ./old.ts ./new.ts
 cp ./src/config.json ./dist/
 find . -name "*.bak" -delete
 find ./logs | xargs rm
 
-# ✅ Temp directory operations
+# Temp directory operations
 rm -rf /tmp/build-cache
 echo "data" > /tmp/output.txt
 rsync -av --delete ./src/ /tmp/backup/
 
-# ✅ Device paths
+# Device paths
 echo "x" > /dev/null
 truncate -s 0 /dev/null
 
-# ✅ Read from anywhere (safe)
+# Read from anywhere (safe)
 cp /etc/hosts ./local-hosts
 cat /etc/passwd
 
-# ✅ Safe git commands
+# Safe git commands
 git status
 git add .
 git commit -m "message"
@@ -252,21 +235,30 @@ git stash
 git stash pop
 ```
 
+</details>
+
+## Performance
+
+Near-zero latency impact on your workflow:
+
+| Platform    | Latency per tool call | Notes                                    |
+| ----------- | --------------------- | ---------------------------------------- |
+| OpenCode    | **~20µs**             | In-process plugin, near-zero overhead    |
+| Pi          | **~20µs**             | In-process hook, near-zero overhead      |
+| Claude Code | **~31ms**             | External process (~30ms Node.js startup) |
+| Factory     | **~31ms**             | External process (~30ms Node.js startup) |
+
+For context: LLM API calls typically take 2-10+ seconds. Even the slower external process hook adds less than 0.3% to total response time.
+
 ## Limitations
 
 Leash is a **defense-in-depth** layer, not a complete sandbox. It cannot protect against:
 
 - Kernel exploits or privilege escalation
 - Network-based attacks (downloading and executing scripts)
-- Memory-based attacks
 - Commands not routed through the intercepted tools
 
-For maximum security, combine Leash with:
-
-- Container isolation (Docker, Podman)
-- User permission restrictions
-- Read-only filesystem mounts
-- Network egress filtering
+For maximum security, combine Leash with container isolation (Docker), user permission restrictions, or read-only filesystem mounts.
 
 ## Development
 
