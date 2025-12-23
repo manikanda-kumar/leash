@@ -36,8 +36,12 @@ Add to `~/.pi/agent/settings.json`:
 <details>
 <summary><b>OpenCode</b> - <a href="https://opencode.ai/docs/plugins/">docs</a></summary>
 
-```bash
-ln -s ~/leash/dist/opencode/leash.js ~/.config/opencode/plugin/leash.js
+Add to `~/.config/opencode/config.json`:
+
+```json
+{
+  "plugins": ["/full/path/to/leash/dist/opencode/leash.js"]
+}
 ```
 
 </details>
