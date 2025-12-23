@@ -248,22 +248,26 @@ export class CommandAnalyzer {
     return { blocked: false };
   }
 
-  private checkDangerousPatterns(command: string): AnalysisResult {
+  private checkDangerousPatterns(
+    command: string,
+    resolveBase?: string
+  ): AnalysisResult {
     for (const { pattern, name } of DANGEROUS_PATTERNS) {
       if (!pattern.test(command)) continue;
 
       const paths = this.extractPaths(command);
       for (const path of paths) {
+        const resolved = this.resolvePath(path, resolveBase);
         if (
-          !this.pathValidator.isWithinWorkingDir(path) &&
-          !this.pathValidator.isTempPath(path)
+          !this.pathValidator.isWithinWorkingDir(resolved) &&
+          !this.pathValidator.isTempPath(resolved)
         ) {
           return {
             blocked: true,
             reason: `Command "${name}" targets path outside working directory: ${path}`,
           };
         }
-        const result = this.checkProtectedPath(path, `Command "${name}"`);
+        const result = this.checkProtectedPath(path, `Command "${name}"`, resolveBase);
         if (result.blocked) return result;
       }
     }
@@ -417,10 +421,14 @@ export class CommandAnalyzer {
     const redirectResult = this.checkRedirects(command);
     if (redirectResult.blocked) return redirectResult;
 
-    const patternResult = this.checkDangerousPatterns(command);
-    if (patternResult.blocked) return patternResult;
-
     const commands = this.splitCommands(command);
+    const hasCd = commands.some((cmd) => this.isCdCommand(cmd.trim()));
+
+    if (!hasCd) {
+      const patternResult = this.checkDangerousPatterns(command);
+      if (patternResult.blocked) return patternResult;
+    }
+
     let currentWorkDir = this.workingDirectory;
 
     for (const cmd of commands) {
@@ -438,6 +446,12 @@ export class CommandAnalyzer {
 
       const resolveBase =
         currentWorkDir !== this.workingDirectory ? currentWorkDir : undefined;
+
+      if (hasCd) {
+        const patternResult = this.checkDangerousPatterns(trimmed, resolveBase);
+        if (patternResult.blocked) return patternResult;
+      }
+
       const result = this.checkDangerousCommand(trimmed, resolveBase);
       if (result.blocked) return result;
     }

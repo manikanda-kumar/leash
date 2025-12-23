@@ -400,6 +400,17 @@ test("allows git stash pop", () => {
   assert.strictEqual(result.blocked, false);
 });
 
+// cd context tracking for dangerous patterns
+test("allows cd inside working dir followed by find -delete with relative parent path", () => {
+  const result = analyzer.analyze("cd ./packages && find ../dist -delete");
+  assert.strictEqual(result.blocked, false);
+});
+
+test("blocks cd inside working dir followed by find -delete escaping", () => {
+  const result = analyzer.analyze("cd ./packages && find ../../other -delete");
+  assert.strictEqual(result.blocked, true);
+});
+
 // cd bypass prevention
 test("blocks cd outside working dir followed by rm", () => {
   const result = analyzer.analyze('cd ~/Downloads && rm -rf folder');
