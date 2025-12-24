@@ -466,6 +466,48 @@ var CommandAnalyzer = class {
   }
 };
 
+// packages/core/version-checker.ts
+import { readFileSync, existsSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+function getVersion() {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(__dirname, "..", "..", "package.json"),
+    join(__dirname, "..", "..", "..", "package.json")
+  ];
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      try {
+        const pkg = JSON.parse(readFileSync(path, "utf-8"));
+        if (pkg.name === "@melihmucuk/leash") {
+          return pkg.version;
+        }
+      } catch {
+      }
+    }
+  }
+  return "0.0.0";
+}
+var CURRENT_VERSION = getVersion();
+var NPM_REGISTRY_URL = "https://registry.npmjs.org/@melihmucuk/leash/latest";
+async function checkForUpdates() {
+  try {
+    const response = await fetch(NPM_REGISTRY_URL);
+    if (!response.ok) {
+      return { hasUpdate: false, currentVersion: CURRENT_VERSION };
+    }
+    const data = await response.json();
+    return {
+      hasUpdate: data.version !== CURRENT_VERSION,
+      latestVersion: data.version,
+      currentVersion: CURRENT_VERSION
+    };
+  } catch {
+    return { hasUpdate: false, currentVersion: CURRENT_VERSION };
+  }
+}
+
 // packages/claude-code/leash.ts
 async function readStdin() {
   const chunks = [];
@@ -483,10 +525,21 @@ async function main() {
     console.error("Failed to parse input JSON");
     process.exit(1);
   }
-  const { tool_name, tool_input, cwd } = input;
+  const { hook_event_name, tool_name, tool_input, cwd } = input;
+  if (hook_event_name === "SessionStart") {
+    const messages = ["\u{1F512} Leash active"];
+    const update = await checkForUpdates();
+    if (update.hasUpdate) {
+      messages.push(
+        `\u{1F504} Leash ${update.latestVersion} available. Run: leash --update`
+      );
+    }
+    console.log(JSON.stringify({ systemMessage: messages.join("\n") }));
+    process.exit(0);
+  }
   const analyzer = new CommandAnalyzer(cwd);
   if (tool_name === "Bash") {
-    const command = tool_input.command || "";
+    const command = tool_input?.command || "";
     const result = analyzer.analyze(command);
     if (result.blocked) {
       console.error(
@@ -499,7 +552,7 @@ Action: Guide the user to run the command manually.`
     }
   }
   if (tool_name === "Write" || tool_name === "Edit") {
-    const path = tool_input.file_path || "";
+    const path = tool_input?.file_path || "";
     const result = analyzer.validatePath(path);
     if (result.blocked) {
       console.error(

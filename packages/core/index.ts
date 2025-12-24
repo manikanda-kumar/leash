@@ -8,3 +8,8 @@ export {
   SAFE_WRITE_PATHS,
   TEMP_PATHS,
 } from "./constants.js";
+export {
+  checkForUpdates,
+  CURRENT_VERSION,
+  type UpdateCheckResult,
+} from "./version-checker.js";

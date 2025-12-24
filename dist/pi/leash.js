@@ -464,6 +464,48 @@ var CommandAnalyzer = class {
   }
 };
 
+// packages/core/version-checker.ts
+import { readFileSync, existsSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+function getVersion() {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(__dirname, "..", "..", "package.json"),
+    join(__dirname, "..", "..", "..", "package.json")
+  ];
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      try {
+        const pkg = JSON.parse(readFileSync(path, "utf-8"));
+        if (pkg.name === "@melihmucuk/leash") {
+          return pkg.version;
+        }
+      } catch {
+      }
+    }
+  }
+  return "0.0.0";
+}
+var CURRENT_VERSION = getVersion();
+var NPM_REGISTRY_URL = "https://registry.npmjs.org/@melihmucuk/leash/latest";
+async function checkForUpdates() {
+  try {
+    const response = await fetch(NPM_REGISTRY_URL);
+    if (!response.ok) {
+      return { hasUpdate: false, currentVersion: CURRENT_VERSION };
+    }
+    const data = await response.json();
+    return {
+      hasUpdate: data.version !== CURRENT_VERSION,
+      latestVersion: data.version,
+      currentVersion: CURRENT_VERSION
+    };
+  } catch {
+    return { hasUpdate: false, currentVersion: CURRENT_VERSION };
+  }
+}
+
 // packages/pi/leash.ts
 function leash_default(pi) {
   let analyzer = null;
@@ -471,6 +513,13 @@ function leash_default(pi) {
     if (event.reason === "start") {
       analyzer = new CommandAnalyzer(ctx.cwd);
       ctx.ui.notify("\u{1F512} Leash active", "info");
+      const update = await checkForUpdates();
+      if (update.hasUpdate) {
+        ctx.ui.notify(
+          `\u{1F504} Leash ${update.latestVersion} available. Run: leash --update (restart required)`,
+          "warning"
+        );
+      }
     }
   });
   pi.on("tool_call", async (event, ctx) => {

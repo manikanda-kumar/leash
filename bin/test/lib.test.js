@@ -169,6 +169,13 @@ test("claude-code: setup on empty config", () => {
   assert.strictEqual(result.success, true);
 
   const config = readTestConfig("claude-empty");
+  // SessionStart hook
+  assert.strictEqual(config.hooks.SessionStart.length, 1);
+  assert.strictEqual(
+    config.hooks.SessionStart[0].hooks[0].command,
+    `node ${LEASH_PATH}`
+  );
+  // PreToolUse hook
   assert.strictEqual(config.hooks.PreToolUse.length, 1);
   assert.strictEqual(config.hooks.PreToolUse[0].matcher, "Bash|Write|Edit");
   assert.strictEqual(
@@ -197,6 +204,9 @@ test("claude-code: setup merges with existing hooks", () => {
 
   const config = readTestConfig("claude-merge");
   assert.deepStrictEqual(config.permissions, { allow: ["Bash"] });
+  // SessionStart hook added
+  assert.strictEqual(config.hooks.SessionStart.length, 1);
+  // PreToolUse merged
   assert.strictEqual(config.hooks.PreToolUse.length, 2);
   assert.strictEqual(config.hooks.PreToolUse[0].matcher, ".*");
   assert.strictEqual(config.hooks.PreToolUse[1].matcher, "Bash|Write|Edit");
@@ -209,6 +219,11 @@ test("claude-code: setup skips if already installed", () => {
   const configPath = getConfigPath("claude-skip");
   writeTestConfig("claude-skip", {
     hooks: {
+      SessionStart: [
+        {
+          hooks: [{ type: "command", command: "node /path/to/leash.js" }],
+        },
+      ],
       PreToolUse: [
         {
           matcher: "Bash|Write|Edit",
@@ -231,6 +246,11 @@ test("claude-code: remove works", () => {
   writeTestConfig("claude-remove", {
     permissions: { allow: ["Bash"] },
     hooks: {
+      SessionStart: [
+        {
+          hooks: [{ type: "command", command: `node ${LEASH_PATH}` }],
+        },
+      ],
       PreToolUse: [
         { matcher: ".*", hooks: [{ type: "command", command: "other-hook" }] },
         {
@@ -247,6 +267,7 @@ test("claude-code: remove works", () => {
 
   const config = readTestConfig("claude-remove");
   assert.deepStrictEqual(config.permissions, { allow: ["Bash"] });
+  assert.strictEqual(config.hooks.SessionStart.length, 0);
   assert.strictEqual(config.hooks.PreToolUse.length, 1);
   assert.strictEqual(config.hooks.PreToolUse[0].matcher, ".*");
 
@@ -263,6 +284,9 @@ test("factory: setup on empty config", () => {
   assert.strictEqual(result.success, true);
 
   const config = readTestConfig("factory-empty");
+  // SessionStart hook
+  assert.strictEqual(config.hooks.SessionStart.length, 1);
+  // PreToolUse hook
   assert.strictEqual(config.hooks.PreToolUse.length, 1);
   assert.strictEqual(config.hooks.PreToolUse[0].matcher, "Execute|Write|Edit");
 
@@ -274,6 +298,11 @@ test("factory: remove works", () => {
   const configPath = getConfigPath("factory-remove");
   writeTestConfig("factory-remove", {
     hooks: {
+      SessionStart: [
+        {
+          hooks: [{ type: "command", command: `node ${LEASH_PATH}` }],
+        },
+      ],
       PreToolUse: [
         {
           matcher: "Execute|Write|Edit",
@@ -288,6 +317,7 @@ test("factory: remove works", () => {
   assert.strictEqual(result.success, true);
 
   const config = readTestConfig("factory-remove");
+  assert.strictEqual(config.hooks.SessionStart.length, 0);
   assert.strictEqual(config.hooks.PreToolUse.length, 0);
 
   cleanup();

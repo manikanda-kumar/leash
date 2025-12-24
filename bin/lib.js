@@ -49,26 +49,59 @@ export const PLATFORMS = {
     distPath: "claude-code/leash.js",
     setup: (config, leashPath) => {
       config.hooks = config.hooks || {};
-      config.hooks.PreToolUse = config.hooks.PreToolUse || [];
-      const exists = config.hooks.PreToolUse.some((entry) =>
+      const hookCommand = { type: "command", command: `node ${leashPath}` };
+
+      // Check if already installed in either hook
+      const inSessionStart = config.hooks.SessionStart?.some((entry) =>
         entry.hooks?.some((h) => h.command?.includes("leash"))
       );
-      if (exists) {
+      const inPreToolUse = config.hooks.PreToolUse?.some((entry) =>
+        entry.hooks?.some((h) => h.command?.includes("leash"))
+      );
+      if (inSessionStart && inPreToolUse) {
         return { skipped: true };
       }
-      config.hooks.PreToolUse.push({
-        matcher: "Bash|Write|Edit",
-        hooks: [{ type: "command", command: `node ${leashPath}` }],
-      });
+
+      // Add SessionStart hook
+      if (!inSessionStart) {
+        config.hooks.SessionStart = config.hooks.SessionStart || [];
+        config.hooks.SessionStart.push({
+          hooks: [hookCommand],
+        });
+      }
+
+      // Add PreToolUse hook
+      if (!inPreToolUse) {
+        config.hooks.PreToolUse = config.hooks.PreToolUse || [];
+        config.hooks.PreToolUse.push({
+          matcher: "Bash|Write|Edit",
+          hooks: [hookCommand],
+        });
+      }
+
       return { skipped: false };
     },
     remove: (config) => {
-      if (!config.hooks?.PreToolUse) return false;
-      const before = config.hooks.PreToolUse.length;
-      config.hooks.PreToolUse = config.hooks.PreToolUse.filter(
-        (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
-      );
-      return config.hooks.PreToolUse.length < before;
+      if (!config.hooks) return false;
+      let removed = false;
+
+      if (config.hooks.SessionStart) {
+        const before = config.hooks.SessionStart.length;
+        config.hooks.SessionStart = config.hooks.SessionStart.filter(
+          (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
+        );
+        if (config.hooks.SessionStart.length < before) removed = true;
+      }
+
+      if (config.hooks.PreToolUse) {
+        const before = config.hooks.PreToolUse.length;
+        config.hooks.PreToolUse = config.hooks.PreToolUse.filter(
+          (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
+        );
+        if (config.hooks.PreToolUse.length < before) removed = true;
+      }
+
+      return removed;
     },
   },
   factory: {
@@ -77,26 +110,59 @@ export const PLATFORMS = {
     distPath: "factory/leash.js",
     setup: (config, leashPath) => {
       config.hooks = config.hooks || {};
-      config.hooks.PreToolUse = config.hooks.PreToolUse || [];
-      const exists = config.hooks.PreToolUse.some((entry) =>
+      const hookCommand = { type: "command", command: `node ${leashPath}` };
+
+      // Check if already installed in either hook
+      const inSessionStart = config.hooks.SessionStart?.some((entry) =>
         entry.hooks?.some((h) => h.command?.includes("leash"))
       );
-      if (exists) {
+      const inPreToolUse = config.hooks.PreToolUse?.some((entry) =>
+        entry.hooks?.some((h) => h.command?.includes("leash"))
+      );
+      if (inSessionStart && inPreToolUse) {
         return { skipped: true };
       }
-      config.hooks.PreToolUse.push({
-        matcher: "Execute|Write|Edit",
-        hooks: [{ type: "command", command: `node ${leashPath}` }],
-      });
+
+      // Add SessionStart hook
+      if (!inSessionStart) {
+        config.hooks.SessionStart = config.hooks.SessionStart || [];
+        config.hooks.SessionStart.push({
+          hooks: [hookCommand],
+        });
+      }
+
+      // Add PreToolUse hook
+      if (!inPreToolUse) {
+        config.hooks.PreToolUse = config.hooks.PreToolUse || [];
+        config.hooks.PreToolUse.push({
+          matcher: "Execute|Write|Edit",
+          hooks: [hookCommand],
+        });
+      }
+
       return { skipped: false };
     },
     remove: (config) => {
-      if (!config.hooks?.PreToolUse) return false;
-      const before = config.hooks.PreToolUse.length;
-      config.hooks.PreToolUse = config.hooks.PreToolUse.filter(
-        (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
-      );
-      return config.hooks.PreToolUse.length < before;
+      if (!config.hooks) return false;
+      let removed = false;
+
+      if (config.hooks.SessionStart) {
+        const before = config.hooks.SessionStart.length;
+        config.hooks.SessionStart = config.hooks.SessionStart.filter(
+          (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
+        );
+        if (config.hooks.SessionStart.length < before) removed = true;
+      }
+
+      if (config.hooks.PreToolUse) {
+        const before = config.hooks.PreToolUse.length;
+        config.hooks.PreToolUse = config.hooks.PreToolUse.filter(
+          (entry) => !entry.hooks?.some((h) => h.command?.includes("leash"))
+        );
+        if (config.hooks.PreToolUse.length < before) removed = true;
+      }
+
+      return removed;
     },
   },
 };

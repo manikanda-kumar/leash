@@ -1,5 +1,5 @@
 import type { HookAPI } from "@mariozechner/pi-coding-agent/hooks";
-import { CommandAnalyzer } from "../core/index.js";
+import { CommandAnalyzer, checkForUpdates } from "../core/index.js";
 
 export default function (pi: HookAPI) {
   let analyzer: CommandAnalyzer | null = null;
@@ -8,6 +8,14 @@ export default function (pi: HookAPI) {
     if (event.reason === "start") {
       analyzer = new CommandAnalyzer(ctx.cwd);
       ctx.ui.notify("🔒 Leash active", "info");
+
+      const update = await checkForUpdates();
+      if (update.hasUpdate) {
+        ctx.ui.notify(
+          `🔄 Leash ${update.latestVersion} available. Run: leash --update (restart required)`,
+          "warning"
+        );
+      }
     }
   });
 

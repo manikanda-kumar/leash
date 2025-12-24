@@ -19,26 +19,27 @@ AI agents can hallucinate dangerous commands. Leash sandboxes them:
 ## Quick Start
 
 ```bash
+# Install leash globally
 npm install -g @melihmucuk/leash
+
+# Setup leash for your platform
 leash --setup <platform>
+
+# Remove leash from a platform
+leash --remove <platform>
+
+# Update leash anytime
+leash --update
 ```
 
-| Platform | Command |
-|----------|---------|
-| OpenCode | `leash --setup opencode` |
-| Pi Coding Agent | `leash --setup pi` |
-| Claude Code | `leash --setup claude-code` |
-| Factory Droid | `leash --setup factory` |
+| Platform        | Command                     |
+| --------------- | --------------------------- |
+| OpenCode        | `leash --setup opencode`    |
+| Pi Coding Agent | `leash --setup pi`          |
+| Claude Code     | `leash --setup claude-code` |
+| Factory Droid   | `leash --setup factory`     |
 
 Restart your agent. Done!
-
-```bash
-# Update anytime
-npm update -g @melihmucuk/leash
-
-# Remove from a platform
-leash --remove <platform>
-```
 
 <details>
 <summary><b>Manual Setup</b></summary>
@@ -72,6 +73,16 @@ Add to `~/.claude/settings.json`:
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node <path from leash --path claude-code>"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|Write|Edit",
@@ -94,6 +105,16 @@ Add to `~/.factory/settings.json`:
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node <path from leash --path factory>"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Execute|Write|Edit",

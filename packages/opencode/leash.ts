@@ -1,5 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { CommandAnalyzer } from "../core/index.js";
+import { CommandAnalyzer, checkForUpdates } from "../core/index.js";
 
 export const Leash: Plugin = async ({ directory, client }) => {
   const analyzer = new CommandAnalyzer(directory);
@@ -10,6 +10,16 @@ export const Leash: Plugin = async ({ directory, client }) => {
         await client.tui.showToast({
           body: { message: "🔒 Leash active", variant: "info" },
         });
+
+        const update = await checkForUpdates();
+        if (update.hasUpdate) {
+          await client.tui.showToast({
+            body: {
+              message: `🔄 Leash ${update.latestVersion} available.\nRun: leash --update (restart required)`,
+              variant: "warning",
+            },
+          });
+        }
       }
     },
 

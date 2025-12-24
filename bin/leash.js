@@ -4,7 +4,9 @@ import { existsSync } from "fs";
 import { dirname, join } from "path";
 import { homedir } from "os";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 import { PLATFORMS, setupPlatform, removePlatform } from "./lib.js";
+import { checkForUpdates } from "../packages/core/lib/version-checker.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -107,6 +109,28 @@ function showPath(platformKey) {
   console.log(leashPath);
 }
 
+async function update() {
+  console.log("Checking for updates...");
+
+  const result = await checkForUpdates();
+
+  if (!result.hasUpdate) {
+    console.log(`[ok] Already up to date (v${result.currentVersion})`);
+    return;
+  }
+
+  console.log(`[ok] Update available: v${result.currentVersion} → v${result.latestVersion}`);
+  console.log("[ok] Updating...");
+
+  try {
+    execSync("npm update -g @melihmucuk/leash", { stdio: "inherit" });
+    console.log("[ok] Update complete");
+  } catch {
+    console.error("[error] Update failed. Try manually: npm update -g @melihmucuk/leash");
+    process.exit(1);
+  }
+}
+
 function showHelp() {
   console.log(`
 leash - Security guardrails for AI coding agents
@@ -115,6 +139,7 @@ Usage:
   leash --setup <platform>    Install leash for a platform
   leash --remove <platform>   Remove leash from a platform
   leash --path <platform>     Show leash path for a platform
+  leash --update              Update leash to latest version
   leash --help                Show this help
 
 Platforms:
@@ -127,6 +152,7 @@ Examples:
   leash --setup opencode
   leash --remove claude-code
   leash --path pi
+  leash --update
 `);
 }
 
@@ -161,6 +187,10 @@ switch (command) {
       process.exit(1);
     }
     showPath(platform);
+    break;
+  case "--update":
+  case "-u":
+    await update();
     break;
   case "--help":
   case "-h":

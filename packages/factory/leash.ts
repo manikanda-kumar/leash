@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { CommandAnalyzer } from "../core/index.js";
+import { CommandAnalyzer, checkForUpdates } from "../core/index.js";
 
 interface FactoryHookInput {
-  tool_name: string;
-  tool_input: {
+  hook_event_name: string;
+  tool_name?: string;
+  tool_input?: {
     command?: string;
     file_path?: string;
   };
@@ -29,15 +30,32 @@ async function main() {
     process.exit(1);
   }
 
-  const { tool_name, tool_input } = input;
+  const { hook_event_name, tool_name, tool_input } = input;
 
   // Get working directory from env var (preferred) or input
   const cwd = process.env.FACTORY_PROJECT_DIR || input.cwd || process.cwd();
+
+  // SessionStart: show activation message and check for updates
+  if (hook_event_name === "SessionStart") {
+    const messages: string[] = ["🔒 Leash active"];
+
+    const update = await checkForUpdates();
+    if (update.hasUpdate) {
+      messages.push(
+        `🔄 Leash ${update.latestVersion} available. Run: leash --update`
+      );
+    }
+
+    console.log(JSON.stringify({ systemMessage: messages.join("\n") }));
+    process.exit(0);
+  }
+
+  // PreToolUse: security checks
   const analyzer = new CommandAnalyzer(cwd);
 
   // Shell command execution
   if (tool_name === "Execute") {
-    const command = tool_input.command || "";
+    const command = tool_input?.command || "";
     const result = analyzer.analyze(command);
 
     if (result.blocked) {
@@ -53,7 +71,7 @@ async function main() {
 
   // File write/edit operations
   if (tool_name === "Write" || tool_name === "Edit") {
-    const path = tool_input.file_path || "";
+    const path = tool_input?.file_path || "";
     const result = analyzer.validatePath(path);
 
     if (result.blocked) {
