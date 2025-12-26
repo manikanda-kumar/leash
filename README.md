@@ -16,6 +16,16 @@ AI agents can hallucinate dangerous commands. Leash sandboxes them:
 
 ![Claude Code](assets/claude-code.png)
 
+## Example horror stories
+
+<img height="400" alt="image" src="https://github.com/user-attachments/assets/db503024-94ca-4443-b80e-b63fbc740367" />
+
+<img height="400" alt="image" src="https://github.com/user-attachments/assets/94f0a4e5-db6c-4b14-bddd-b8984c51ed3d" />
+
+Links:
+1. [Claude CLI deleted my entire home directory (Dec 8th 2025)](https://www.reddit.com/r/ClaudeAI/comments/1pgxckk/claude_cli_deleted_my_entire_home_directory_wiped/)
+2. [Google Antigravity just deleted my drive (Nov 27th 2025)](https://www.reddit.com/r/google_antigravity/comments/1p82or6/google_antigravity_just_deleted_the_contents_of/)
+
 ## Quick Start
 
 ```bash
