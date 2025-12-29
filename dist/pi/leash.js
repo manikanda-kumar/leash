@@ -141,6 +141,27 @@ var CommandAnalyzer = class {
     const expanded = this.pathValidator.expand(path);
     return resolveBase ? resolve2(resolveBase, expanded) : expanded;
   }
+  /**
+   * Strip heredoc content from command before analyzing redirects.
+   * Handles: <<EOF, <<'EOF', <<"EOF", <<-EOF
+   */
+  stripHeredocs(command) {
+    const heredocStart = /<<-?\s*(['"]?)(\w+)\1/g;
+    let result = command;
+    let match;
+    while ((match = heredocStart.exec(command)) !== null) {
+      const delimiter = match[2];
+      const endPattern = new RegExp(`\\n\\t*${delimiter}\\s*(?:\\n|$)`);
+      const startIndex = match.index;
+      const contentAfterStart = command.slice(match.index + match[0].length);
+      const endMatch = endPattern.exec(contentAfterStart);
+      if (endMatch) {
+        const endIndex = match.index + match[0].length + endMatch.index + endMatch[0].length;
+        result = result.slice(0, startIndex) + result.slice(endIndex);
+      }
+    }
+    return result;
+  }
   isPathAllowed(path, allowDevicePaths, resolveBase) {
     const resolved = this.resolvePath(path, resolveBase);
     if (this.pathValidator.isWithinWorkingDir(resolved)) return true;
@@ -267,7 +288,8 @@ var CommandAnalyzer = class {
     return commands;
   }
   checkRedirects(command) {
-    const matches = command.matchAll(REDIRECT_PATTERN);
+    const strippedCommand = this.stripHeredocs(command);
+    const matches = strippedCommand.matchAll(REDIRECT_PATTERN);
     for (const match of matches) {
       const path = match[1] || match[2] || match[3];
       if (!path || path.startsWith("&")) {

@@ -27,6 +27,35 @@ export class CommandAnalyzer {
     return resolveBase ? resolve(resolveBase, expanded) : expanded;
   }
 
+  /**
+   * Strip heredoc content from command before analyzing redirects.
+   * Handles: <<EOF, <<'EOF', <<"EOF", <<-EOF
+   */
+  private stripHeredocs(command: string): string {
+    // Match heredoc start: <<[-]?['"]?DELIMITER['"]?
+    const heredocStart = /<<-?\s*(['"]?)(\w+)\1/g;
+    let result = command;
+    let match;
+
+    while ((match = heredocStart.exec(command)) !== null) {
+      const delimiter = match[2];
+      // Find the delimiter on its own line (possibly with leading tabs for <<-)
+      const endPattern = new RegExp(`\\n\\t*${delimiter}\\s*(?:\\n|$)`);
+      const startIndex = match.index;
+      const contentAfterStart = command.slice(match.index + match[0].length);
+      const endMatch = endPattern.exec(contentAfterStart);
+
+      if (endMatch) {
+        const endIndex =
+          match.index + match[0].length + endMatch.index + endMatch[0].length;
+        // Replace heredoc content with placeholder to preserve command structure
+        result = result.slice(0, startIndex) + result.slice(endIndex);
+      }
+    }
+
+    return result;
+  }
+
   private isPathAllowed(
     path: string,
     allowDevicePaths: boolean,
@@ -192,7 +221,9 @@ export class CommandAnalyzer {
   }
 
   private checkRedirects(command: string): AnalysisResult {
-    const matches = command.matchAll(REDIRECT_PATTERN);
+    // Strip heredoc content to avoid false positives from embedded code
+    const strippedCommand = this.stripHeredocs(command);
+    const matches = strippedCommand.matchAll(REDIRECT_PATTERN);
 
     for (const match of matches) {
       const path = match[1] || match[2] || match[3];

@@ -594,3 +594,49 @@ test("allows xargs rm in ~/.pi", () => {
   const result = analyzer.analyze("find ~/.pi/cache | xargs rm");
   assert.strictEqual(result.blocked, false);
 });
+
+// Heredoc - should not parse content as shell redirects
+test("allows heredoc with regex containing >", () => {
+  const result = analyzer.analyze(`npx tsx <<'EOF'
+const match = text.match(/pattern/g);
+EOF`);
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows heredoc with redirect-like syntax in code", () => {
+  const result = analyzer.analyze(`cat <<EOF
+const x = a > b ? 1 : 0;
+EOF`);
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows heredoc with double-quoted delimiter", () => {
+  const result = analyzer.analyze(`node <<"SCRIPT"
+console.log(arr.filter(x => x > 0));
+SCRIPT`);
+  assert.strictEqual(result.blocked, false);
+});
+
+test("allows heredoc with dash (tab-stripping)", () => {
+  const result = analyzer.analyze(`cat <<-END
+	if (value > threshold) { }
+	END`);
+  assert.strictEqual(result.blocked, false);
+});
+
+test("blocks actual redirect outside heredoc", () => {
+  const result = analyzer.analyze(`cat <<EOF
+content
+EOF
+echo "done" > ~/output.txt`);
+  assert.strictEqual(result.blocked, true);
+  assert.ok(result.reason.includes("Redirect"));
+});
+
+test("allows heredoc followed by valid redirect", () => {
+  const result = analyzer.analyze(`cat <<EOF
+const x = a > b;
+EOF
+echo "done" > ./output.txt`);
+  assert.strictEqual(result.blocked, false);
+});
